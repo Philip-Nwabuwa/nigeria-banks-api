@@ -1,18 +1,22 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nigeria-banks-api/config"
 	"github.com/nigeria-banks-api/controllers"
 	"github.com/nigeria-banks-api/database"
 	"github.com/nigeria-banks-api/middleware"
 )
 
 func main() {
+	cfg := config.LoadConfig()
+
 	database.InitDB()
 	defer database.CloseDB()
 
@@ -20,7 +24,7 @@ func main() {
 	r.Use(middleware.RateLimiter(5, 10))
 
 	r.GET("/api/banks", controllers.GetBanks)
-	r.POST("/api/banks", controllers.AddBank)
+	r.POST("/api/banks", middleware.AuthMiddleware(cfg), controllers.AddBank)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -32,5 +36,6 @@ func main() {
 		os.Exit(0)
 	}()
 
-	r.Run(":8080")
+	log.Printf("Server starting on port %s", cfg.Port)
+	r.Run(fmt.Sprintf(":%s", cfg.Port))
 }
