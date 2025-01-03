@@ -32,5 +32,5 @@ func main() {
 		os.Exit(0)
 	}()
 
-	r.Run("http://localhost:8080")
+	r.Run(":8080")
 }
