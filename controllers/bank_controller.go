@@ -9,8 +9,7 @@ import (
 )
 
 func GetBanks(c *gin.Context) {
-	var count int
-	err := database.DB.QueryRow("SELECT COUNT(*) FROM banks").Scan(&count)
+	count, err := database.GetBankCount()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error checking bank count"})
 		return
@@ -24,22 +23,10 @@ func GetBanks(c *gin.Context) {
 		return
 	}
 
-	rows, err := database.DB.Query("SELECT id, name, code, ussd_code, base_ussd_code, bank_category, internet_banking FROM banks")
+	banks, err := database.GetAllBanks()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching banks"})
 		return
-	}
-	defer rows.Close()
-
-	var banks []models.Bank
-	for rows.Next() {
-		var bank models.Bank
-		err := rows.Scan(&bank.ID, &bank.Name, &bank.Code, &bank.USSDCode, &bank.BaseUSSDCode, &bank.BankCategory, &bank.InternetBanking)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning bank data"})
-			return
-		}
-		banks = append(banks, bank)
 	}
 
 	response := models.BanksResponse{
@@ -61,28 +48,10 @@ func AddBank(c *gin.Context) {
 		return
 	}
 
-	stmt, err := database.DB.Prepare(`
-		INSERT INTO banks (name, code, ussd_code, base_ussd_code, bank_category, internet_banking) 
-		VALUES (?, ?, ?, ?, ?, ?)
-	`)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error preparing statement"})
-		return
-	}
-	defer stmt.Close()
-
-	result, err := stmt.Exec(bank.Name, bank.Code, bank.USSDCode, bank.BaseUSSDCode, bank.BankCategory, bank.InternetBanking)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error inserting bank data"})
+	if err := database.AddBank(&bank); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error adding bank"})
 		return
 	}
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error getting inserted ID"})
-		return
-	}
-
-	bank.ID = int(id)
 	c.JSON(http.StatusCreated, bank)
 }

@@ -1,6 +1,11 @@
 package main
 
 import (
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/gin-gonic/gin"
 	"github.com/nigeria-banks-api/controllers"
 	"github.com/nigeria-banks-api/database"
@@ -8,19 +13,25 @@ import (
 )
 
 func main() {
-	// Initialize database
 	database.InitDB()
+	defer database.CloseDB()
 
-	// Create Gin router
 	r := gin.Default()
-
-	// Apply rate limiter middleware (5 requests per second with burst of 10)
 	r.Use(middleware.RateLimiter(5, 10))
 
-	// Routes
 	r.GET("/api/banks", controllers.GetBanks)
 	r.POST("/api/banks", controllers.AddBank)
 
-	// Start server
+	// Handle graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-quit
+		log.Println("Shutting down server...")
+		database.CloseDB()
+		os.Exit(0)
+	}()
+
 	r.Run(":8080")
 }

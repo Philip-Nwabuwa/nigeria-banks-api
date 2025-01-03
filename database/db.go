@@ -1,34 +1,86 @@
 package database
 
 import (
-	"database/sql"
+	"encoding/json"
 	"log"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/dgraph-io/badger/v4"
+	"github.com/nigeria-banks-api/models"
 )
 
-var DB *sql.DB
+var DB *badger.DB
 
 func InitDB() {
 	var err error
-	DB, err = sql.Open("sqlite3", "./banks.db")
+	opts := badger.DefaultOptions("./badger-data")
+	opts.Logger = nil // Disable logging
+	DB, err = badger.Open(opts)
 	if err != nil {
 		log.Fatal(err)
 	}
+}
 
-	createTable := `
-	CREATE TABLE IF NOT EXISTS banks (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		code TEXT NOT NULL UNIQUE,
-		ussd_code TEXT NOT NULL,
-		base_ussd_code TEXT NOT NULL,
-		bank_category TEXT NOT NULL,
-		internet_banking BOOLEAN NOT NULL
-	);`
-
-	_, err = DB.Exec(createTable)
-	if err != nil {
-		log.Fatal(err)
+func CloseDB() {
+	if DB != nil {
+		DB.Close()
 	}
+}
+
+func GetAllBanks() ([]models.Bank, error) {
+	var banks []models.Bank
+	
+	err := DB.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			err := item.Value(func(val []byte) error {
+				var bank models.Bank
+				if err := json.Unmarshal(val, &bank); err != nil {
+					return err
+				}
+				banks = append(banks, bank)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return banks, nil
+}
+
+func AddBank(bank *models.Bank) error {
+	return DB.Update(func(txn *badger.Txn) error {
+		bankData, err := json.Marshal(bank)
+		if err != nil {
+			return err
+		}
+		
+		// Use bank code as key
+		key := []byte(bank.Code)
+		return txn.Set(key, bankData)
+	})
+}
+
+func GetBankCount() (int, error) {
+	count := 0
+	err := DB.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		for it.Rewind(); it.Valid(); it.Next() {
+			count++
+		}
+		return nil
+	})
+	return count, err
 }
