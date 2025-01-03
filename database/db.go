@@ -13,7 +13,7 @@ var DB *badger.DB
 func InitDB() {
 	var err error
 	opts := badger.DefaultOptions("./badger-data")
-	opts.Logger = nil // Disable logging
+	opts.Logger = nil
 	DB, err = badger.Open(opts)
 	if err != nil {
 		log.Fatal(err)
@@ -64,7 +64,6 @@ func AddBank(bank *models.Bank) error {
 			return err
 		}
 		
-		// Use bank code as key
 		key := []byte(bank.Code)
 		return txn.Set(key, bankData)
 	})

@@ -22,7 +22,6 @@ func main() {
 	r.GET("/api/banks", controllers.GetBanks)
 	r.POST("/api/banks", controllers.AddBank)
 
-	// Handle graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -33,5 +32,5 @@ func main() {
 		os.Exit(0)
 	}()
 
-	r.Run(":8080")
+	r.Run("http://localhost:8080")
 }
